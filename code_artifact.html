@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>การ์ดขูดอวยพร & คูปองของขวัญ ✨</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- Google Fonts: Prompt & Mali สำหรับภาษาไทยที่อบอุ่น น่ารัก อ่านง่าย -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'sans-serif'],
+            cute: ['Mali', 'cursive'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* ป้องกันการดึงหน้าจอรีเฟรชหรือเลื่อนขณะขูดบนมือถือ */
+    .scratch-canvas {
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: grab;
+    }
+    .scratch-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* แอนิเมชันลอยเบาๆ สำหรับไอคอนพื้นหลัง */
+    @keyframes floatSlow {
+      0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+      }
+      50% {
+        transform: translateY(-14px) rotate(6deg);
+      }
+    }
+
+    @keyframes floatReverse {
+      0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+      }
+      50% {
+        transform: translateY(12px) rotate(-6deg);
+      }
+    }
+
+    .animate-float-slow {
+      animation: floatSlow 6s ease-in-out infinite;
+    }
+
+    .animate-float-reverse {
+      animation: floatReverse 7s ease-in-out infinite;
+    }
+
+    /* เอฟเฟกต์แสงวิบวับบนคูปองเมื่อเปิดเผยแล้ว */
+    @keyframes shimmerSweep {
+      0% {
+        transform: translateX(-120%) skewX(-20deg);
+      }
+      100% {
+        transform: translateX(220%) skewX(-20deg);
+      }
+    }
+
+    .voucher-shimmer::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.6) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      animation: shimmerSweep 3.2s infinite ease-in-out;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body id="appBody" class="min-h-screen bg-gradient-to-br from-[#FFFBF5] via-[#FFF5F2] to-[#FDF7E7] text-stone-700 font-sans relative overflow-x-hidden flex flex-col items-center justify-center p-4 sm:p-6 transition-colors duration-500">
+
+  <!-- ของตกแต่งพื้นหลังลอยเบาๆ (Floating Decorations) -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+    <div id="deco1" class="absolute top-8 left-6 sm:left-16 text-3xl sm:text-4xl opacity-40 animate-float-slow">🎈</div>
+    <div id="deco2" class="absolute top-20 right-8 sm:right-20 text-3xl sm:text-4xl opacity-40 animate-float-reverse">✨</div>
+    <div id="deco3" class="absolute bottom-24 left-8 sm:left-24 text-3xl sm:text-4xl opacity-35 animate-float-reverse">🎂</div>
+    <div id="deco4" class="absolute bottom-14 right-6 sm:right-16 text-3xl sm:text-4xl opacity-40 animate-float-slow">🎁</div>
+    <div id="deco5" class="absolute top-1/2 left-3 text-2xl opacity-25 animate-float-slow hidden sm:block">🌸</div>
+    <div id="deco6" class="absolute top-1/3 right-4 text-2xl opacity-25 animate-float-reverse hidden sm:block">💖</div>
+
+    <!-- วงกลมแสงฟุ้งสีพาสเทลตามธีม -->
+    <div id="bgGlow1" class="absolute -top-24 -left-24 w-72 h-72 bg-rose-200/40 rounded-full blur-3xl transition-colors duration-500"></div>
+    <div id="bgGlow2" class="absolute -bottom-24 -right-24 w-80 h-80 bg-amber-200/45 rounded-full blur-3xl transition-colors duration-500"></div>
+  </div>
+
+  <!-- คอนเทนเนอร์หลักของเว็บการ์ด -->
+  <main class="relative z-10 w-full max-w-md mx-auto flex flex-col items-center">
+
+    <!-- แถบเครื่องมือขนาดเล็กด้านบน (ปุ่มเปิด/ปิดเสียง และปุ่มสลับโหมดแก้ไขเมื่อเปิดจากลิงก์แชร์) -->
+    <div class="w-full flex items-center justify-between mb-2.5 px-1">
+      <button
+        id="toggleSoundBtn"
+        type="button"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white backdrop-blur-sm border border-stone-200/80 text-xs font-medium text-stone-600 shadow-sm transition-all cursor-pointer"
+        title="เปิด/ปิดเสียงเอฟเฟกต์"
+      >
+        <span id="soundIcon">🔊</span>
+        <span id="soundLabel">เสียง: เปิด</span>
+      </button>
+
+      <!-- ปุ่มเล็กสำหรับปลดล็อกโหมดแก้ไขกรณีเปิดผ่านลิงก์ที่ถูกแชร์มา -->
+      <button
+        id="unlockEditModeBtn"
+        type="button"
+        class="hidden inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/70 hover:bg-white backdrop-blur-sm border border-stone-200/80 text-xs font-medium text-stone-500 hover:text-stone-700 shadow-sm transition-all cursor-pointer"
+      >
+        <span>✏️</span>
+        <span>ปรับแต่งการ์ดเอง</span>
+      </button>
+    </div>
+
+    <!-- ตัวการ์ดหลัก (Main Greeting Card) -->
+    <section id="mainCard" class="w-full bg-white/90 backdrop-blur-md rounded-3xl shadow-xl border border-rose-200/80 p-5 sm:p-7 transition-all duration-300">
+
+      <!-- ส่วนหัวการ์ด (Card Header) -->
+      <header class="text-center mb-5">
+        <div id="tagBadgeContainer" class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-600 text-xs sm:text-sm font-semibold tracking-wide mb-2.5 shadow-sm transition-colors">
+          <span id="displayTagIcon">✨</span>
+          <span id="displayTagText">SPECIAL FOR YOU</span>
+        </div>
+
+        <h1 class="font-cute text-2xl sm:text-3xl font-bold text-stone-800 leading-snug">
+          <span id="displayMainTitle">Happy Birthday!</span>
+          <span id="displayTitleEmoji" class="inline-block animate-bounce ml-1">🎂</span>
+        </h1>
+
+        <p class="mt-1.5 text-base sm:text-lg font-medium text-stone-600">
+          แด่... <span id="displayRecipientName" class="font-cute font-bold text-rose-500 underline decoration-amber-300 decoration-wavy underline-offset-4">คนพิเศษของฉัน</span> 💖
+        </p>
+      </header>
+
+      <!-- แถบสถานะความคืบหน้าการขูด (Scratch Progress Indicator) -->
+      <div class="mb-3">
+        <div class="flex items-center justify-between text-xs text-stone-500 mb-1 px-1">
+          <span id="scratchHintText" class="font-medium text-rose-600">✨ ถูแผ่นฟอยล์เพื่อเปิดคำอวยพรและของขวัญ</span>
+          <span id="scratchPercentText" class="font-semibold text-stone-600">0%</span>
+        </div>
+        <div class="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+          <div id="scratchProgressBar" class="h-full w-0 bg-gradient-to-r from-rose-400 to-amber-400 rounded-full transition-all duration-150"></div>
+        </div>
+      </div>
+
+      <!-- พื้นที่การ์ดขูด (Interactive Scratch-Off Container) -->
+      <div id="scratchWrapper" class="relative w-full rounded-2xl overflow-hidden shadow-inner border-2 border-rose-200 bg-gradient-to-b from-rose-50/70 to-white select-none transition-colors">
+
+        <!-- ชั้นเนื้อหาด้านใน (Hidden Surprise Content) -->
+        <div id="secretContent" class="p-5 sm:p-6 flex flex-col items-center text-center min-h-[325px] sm:min-h-[345px] justify-between">
+
+          <!-- คำอวยพร -->
+          <div class="w-full">
+            <div id="secretIconBox" class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-rose-100 text-2xl mb-2.5 shadow-sm">
+              🥳
+            </div>
+            <h2 id="displaySubHeading" class="font-cute text-lg sm:text-xl font-bold text-stone-800 mb-2">
+              ขอให้เป็นวันที่ดีที่สุดอีกวันหนึ่งนะ!
+            </h2>
+            <p id="displayMessage" class="text-sm sm:text-[15px] text-stone-600 leading-relaxed whitespace-pre-line px-1">
+              ขอให้มีความสุขมากๆ สุขภาพแข็งแรง ยิ้มเยอะๆ สมหวังในทุกสิ่งที่ตั้งใจ และมีเรื่องดีๆ เข้ามาในชีวิตทุกวันเลยนะ!
+            </p>
+          </div>
+
+          <!-- กล่องคูปองของขวัญ (Perforated Gift Voucher) -->
+          <div class="w-full mt-4 relative">
+            <div id="voucherBox" class="voucher-shimmer relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-50 via-rose-50 to-amber-50 border-2 border-dashed border-amber-400 p-4 shadow-sm transition-colors">
+              <!-- รอยปรุวงกลมซ้าย-ขวา ให้เหมือนตั๋วคูปอง -->
+              <div id="voucherNotchLeft" class="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border-r-2 border-amber-400"></div>
+              <div id="voucherNotchRight" class="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border-l-2 border-amber-400"></div>
+
+              <div id="voucherBadgeLabel" class="text-[11px] font-bold uppercase tracking-widest text-amber-600 mb-1">
+                🎟️ Special Gift Voucher
+              </div>
+              <div id="displayVoucherTitle" class="font-cute text-base sm:text-lg font-bold text-stone-800 leading-snug">
+                คูปองเลี้ยงของอร่อย / ตามใจ 1 วัน 🍲
+              </div>
+              <div id="displayVoucherNote" class="mt-1 text-xs font-medium text-rose-600">
+                (ใช้ได้ทุกวันไม่จำกัดวันหมดอายุ • แคปหน้าจอเพื่อใช้สิทธิ์)
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ชั้นบน: แผ่นฟอยล์สำหรับขูด (HTML5 Canvas Layer) -->
+        <canvas
+          id="scratchCanvas"
+          class="scratch-canvas absolute inset-0 w-full h-full z-20 transition-opacity duration-700 ease-out"
+          aria-label="พื้นที่ขูดการ์ดอวยพร"
+        ></canvas>
+
+      </div>
+
+      <!-- ข้อความแนะนำหลังขูดสำเร็จ (แสดงเมื่อขูดครบ) -->
+      <div id="completedBanner" class="hidden mt-4 p-3 rounded-2xl bg-amber-50/90 border border-amber-300 text-center text-xs sm:text-sm text-stone-700 font-medium">
+        🎉 เย้! เปิดการ์ดสำเร็จแล้ว อย่าลืมแคปหน้าจอคูปองเก็บไว้ใช้สิทธิ์นะ!
+      </div>
+
+    </section>
+
+    <!-- ปุ่มเครื่องมือด้านล่าง (Action Buttons) -->
+    <div id="actionButtonsGrid" class="w-full mt-4 grid grid-cols-2 gap-3">
+      <button
+        id="resetBtn"
+        type="button"
+        class="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white/90 hover:bg-white active:scale-95 text-stone-700 font-medium text-sm shadow-md border border-stone-200 transition-all cursor-pointer"
+      >
+        <span>🔄</span>
+        <span>ขูดใหม่อีกครั้ง</span>
+      </button>
+
+      <button
+        id="openEditModalBtn"
+        type="button"
+        class="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-rose-500 to-amber-500 hover:opacity-95 active:scale-95 text-white font-medium text-sm shadow-md transition-all cursor-pointer"
+      >
+        <span>✏️</span>
+        <span>ปรับแต่ง & ส่งลิงก์</span>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Toast Notification สำหรับแจ้งเตือนแบบนุ่มนวล -->
+  <div
+    id="toastNotification"
+    class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-stone-800/95 text-white text-xs sm:text-sm font-medium shadow-lg opacity-0 pointer-events-none transition-all duration-300 translate-y-3 text-center max-w-[90vw]"
+  >
+    บันทึกข้อความเรียบร้อยแล้ว ✨
+  </div>
+
+  <!-- Modal แก้ไขข้อความ โอกาสพิเศษ ธีมสี และสร้างลิงก์แชร์ (Customization Modal) -->
+  <div
+    id="editModal"
+    class="fixed inset-0 z-40 hidden items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm transition-opacity"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modalTitle"
+  >
+    <div class="w-full max-w-lg bg-[#FFFDF9] rounded-3xl shadow-2xl border border-stone-200 p-5 sm:p-6 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-stone-200">
+        <h3 id="modalTitle" class="font-cute text-lg sm:text-xl font-bold text-stone-800">
+          ✏️ ปรับแต่งการ์ด & ของขวัญ
+        </h3>
+        <button
+          id="closeModalBtn"
+          type="button"
+          class="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition-colors cursor-pointer"
+          aria-label="ปิดหน้าต่าง"
+        >
+          ✕
+        </button>
+      </div>
+
+      <form id="customForm" class="mt-4 space-y-4 text-sm">
+
+        <!-- 1. เลือกเทมเพลตโอกาสพิเศษ (Universal Occasion Presets) -->
+        <div>
+          <label class="block font-semibold text-stone-700 mb-1.5">
+            1. เลือกโอกาสพิเศษ (เติมข้อความอัตโนมัติ หรือปรับแก้เองได้)
+          </label>
+          <div id="presetButtonsContainer" class="flex flex-wrap gap-1.5">
+            <button type="button" data-preset="birthday" class="preset-btn px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-xs font-medium text-stone-700 transition cursor-pointer">
+              🎂 วันเกิด
+            </button>
+            <button type="button" data-preset="belated" class="preset-btn px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-xs font-medium text-stone-700 transition cursor-pointer">
+              🕰️ วันเกิดย้อนหลัง
+            </button>
+            <button type="button" data-preset="anniversary" class="preset-btn px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-xs font-medium text-stone-700 transition cursor-pointer">
+              💑 วันครบรอบ
+            </button>
+            <button type="button" data-preset="congrats" class="preset-btn px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-xs font-medium text-stone-700 transition cursor-pointer">
+              🎓 แสดงความยินดี
+            </button>
+            <button type="button" data-preset="special" class="preset-btn px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-xs font-medium text-stone-700 transition cursor-pointer">
+              ✨ วันพิเศษ / ทั่วไป
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. เลือกธีมสี (Theme Color Switcher) -->
+        <div>
+          <label class="block font-semibold text-stone-700 mb-1.5">
+            2. เลือกโทนสีการ์ด & สีแผ่นฟอยล์ขูด
+          </label>
+          <div id="themeButtonsContainer" class="grid grid-cols-5 gap-2">
+            <button type="button" data-theme="rosegold" class="theme-btn flex flex-col items-center gap-1 p-2 rounded-xl border-2 border-stone-200 bg-white hover:bg-stone-50 transition cursor-pointer">
+              <span class="w-6 h-6 rounded-full bg-gradient-to-tr from-rose-400 to-amber-300 shadow-inner"></span>
+              <span class="text-[11px] font-medium text-stone-600">โรสโกลด์</span>
+            </button>
+            <button type="button" data-theme="gold" class="theme-btn flex flex-col items-center gap-1 p-2 rounded-xl border-2 border-stone-200 bg-white hover:bg-stone-50 transition cursor-pointer">
+              <span class="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-200 shadow-inner"></span>
+              <span class="text-[11px] font-medium text-stone-600">แชมเปญ</span>
+            </button>
+            <button type="button" data-theme="mint" class="theme-btn flex flex-col items-center gap-1 p-2 rounded-xl border-2 border-stone-200 bg-white hover:bg-stone-50 transition cursor-pointer">
+              <span class="w-6 h-6 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-200 shadow-inner"></span>
+              <span class="text-[11px] font-medium text-stone-600">เขียวมิ้นท์</span>
+            </button>
+            <button type="button" data-theme="lavender" class="theme-btn flex flex-col items-center gap-1 p-2 rounded-xl border-2 border-stone-200 bg-white hover:bg-stone-50 transition cursor-pointer">
+              <span class="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-pink-200 shadow-inner"></span>
+              <span class="text-[11px] font-medium text-stone-600">ลาเวนเดอร์</span>
+            </button>
+            <button type="button" data-theme="sky" class="theme-btn flex flex-col items-center gap-1 p-2 rounded-xl border-2 border-stone-200 bg-white hover:bg-stone-50 transition cursor-pointer">
+              <span class="w-6 h-6 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-200 shadow-inner"></span>
+              <span class="text-[11px] font-medium text-stone-600">ฟ้าพาสเทล</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. ป้ายกำกับ / วันที่ (ไม่บังคับกรอก มีปุ่มแทรกวันที่วันนี้) -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="inputTagText" class="font-semibold text-stone-700">
+              ป้ายกำกับด้านบน / วันที่ (เว้นว่างได้)
+            </label>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                id="insertTodayBtn"
+                class="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-medium transition cursor-pointer"
+              >
+                📅 ใส่วันนี้
+              </button>
+              <button
+                type="button"
+                id="clearTagBtn"
+                class="px-2 py-0.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 text-xs font-medium transition cursor-pointer"
+              >
+                ไม่แสดงป้าย
+              </button>
+            </div>
+          </div>
+          <input
+            id="inputTagText"
+            type="text"
+            maxlength="40"
+            placeholder="เช่น SPECIAL FOR YOU, 14 กุมภาพันธ์, หรือเว้นว่าง"
+            class="w-full px-3.5 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-stone-800"
+          />
+        </div>
+
+        <!-- หัวข้อหลักบนการ์ด & ชื่อผู้รับ -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="inputMainTitle" class="block font-semibold text-stone-700 mb-1">
+              หัวข้อหลักบนการ์ด
+            </label>
+            <input
+              id="inputMainTitle"
+              type="text"
+              maxlength="35"
+              placeholder="เช่น Happy Birthday!"
+              class="w-full px-3.5 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-stone-800"
+              required
+            />
+          </div>
+          <div>
+            <label for="inputRecipientName" class="block font-semibold text-stone-700 mb-1">
+              ชื่อผู้รับ
+            </label>
+            <input
+              id="inputRecipientName"
+              type="text"
+              maxlength="40"
+              placeholder="เช่น น้องสาวสุดที่รัก, คนเก่ง"
+              class="w-full px-3.5 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-stone-800"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- หัวข้อย่อยด้านในแผ่นขูด -->
+        <div>
+          <label for="inputSubHeading" class="block font-semibold text-stone-700 mb-1">
+            หัวข้อคำอวยพร (ซ่อนอยู่ใต้แผ่นฟอยล์)
+          </label>
+          <input
+            id="inputSubHeading"
+            type="text"
+            maxlength="50"
+            placeholder="เช่น สุขสันต์วันเกิดนะ!"
+            class="w-full px-3.5 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-stone-800"
+            required
+          />
+        </div>
+
+        <!-- คำอวยพร -->
+        <div>
+          <label for="inputMessage" class="block font-semibold text-stone-700 mb-1">
+            ข้อความอวยพร
+          </label>
+          <textarea
+            id="inputMessage"
+            rows="3"
+            maxlength="280"
+            placeholder="พิมพ์คำอวยพรซึ้งๆ หรือกวนๆ..."
+            class="w-full px-3.5 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-stone-800 resize-none"
+            required
+          ></textarea>
+        </div>
+
+        <!-- ชื่อคูปองของขวัญ -->
+        <div>
+          <label for="inputVoucherTitle" class="block font-semibold text-stone-700 mb-1">
+            ชื่อคูปองของขวัญ (Gift Voucher)
+          </label>
+          <input
+            id="inputVoucherTitle"
+            type="text"
+            maxlength="60"
+            placeholder="เช่น คูปองเลี้ยงชาบู / ของอร่อย 1 มื้อ 🍲"
+            class="w-full px-3.5 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-stone-800"
+            required
+          />
+        </div>
+
+        <!-- เงื่อนไขคูปอง -->
+        <div>
+          <label for="inputVoucherNote" class="block font-semibold text-stone-700 mb-1">
+            รายละเอียด / เงื่อนไขคูปอง
+          </label>
+          <input
+            id="inputVoucherNote"
+            type="text"
+            maxlength="70"
+            placeholder="เช่น (ใช้ได้ทุกวันไม่จำกัดวันหมดอายุ)"
+            class="w-full px-3.5 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-stone-800"
+          />
+        </div>
+
+        <!-- ปุ่มบันทึกและสร้างลิงก์แชร์ -->
+        <div class="pt-3 border-t border-stone-200 flex flex-col sm:flex-row items-center gap-2.5">
+          <button
+            type="submit"
+            class="w-full sm:w-1/2 py-2.5 px-4 rounded-xl bg-stone-800 hover:bg-stone-900 text-white font-semibold shadow-sm transition-all cursor-pointer"
+          >
+            บันทึก & รีเซ็ตแผ่นขูด ✨
+          </button>
+          <button
+            type="button"
+            id="copyShareLinkBtn"
+            class="w-full sm:w-1/2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:opacity-95 text-white font-semibold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <span>🔗</span>
+            <span>สร้างลิงก์ส่งให้ผู้รับ</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ระบบการ์ดขูดอวยพร & คูปองของขวัญอเนกประสงค์ (Universal Interactive Scratch-Off Card)
+     * - ไม่มี Hardcode วันที่ รองรับทุกโอกาส (วันเกิด, วันเกิดย้อนหลัง, วันครบรอบ, แสดงความยินดี, วันพิเศษ)
+     * - รองรับ 5 ธีมสี พร้อมเปลี่ยนสีฟอยล์ขูดบน Canvas อัตโนมัติ
+     * - รองรับการเข้ารหัสข้อมูลลง URL (?c=...) เพื่อส่งลิงก์ให้ผู้รับเปิดขูดได้ทันที
+     */
+    (function () {
+      const STORAGE_KEY = 'universal_scratch_greeting_card_v2';
+      const REVEAL_THRESHOLD = 55; // เปิดเผยอัตโนมัติเมื่อขูดเกิน 55%
+
+      // เทมเพลตโอกาสพิเศษต่างๆ (ไม่มีวันที่ Hardcode)
+      const OCCASION_PRESETS = {
+        birthday: {
+          tagIcon: '🎂',
+          tagText: 'HAPPY BIRTHDAY',
+          mainTitle: 'Happy Birthday!',
+          titleEmoji: '🎂',
+          secretIcon: '🥳',
+          subHeading: 'สุขสันต์วันเกิดนะ!',
+          message: 'ขอให้มีความสุขมากๆ สุขภาพแข็งแรง ยิ้มเยอะๆ สมหวังในทุกเรื่องที่ตั้งใจ และน่ารักสดใสแบบนี้ตลอดไปเลยนะ!',
+          voucherTitle: 'คูปองเลี้ยงของอร่อย 1 มื้อ 🍲',
+          voucherNote: '(ใช้ได้ทุกวันไม่จำกัดวันหมดอายุ • แคปจอส่งมาเคลมได้เลย!)',
+          decos: ['🎈', '✨', '🎂', '🎁', '🌸', '💖']
+        },
+        belated: {
+          tagIcon: '🕰️',
+          tagText: 'BELATED BIRTHDAY',
+          mainTitle: 'Happy Belated Birthday',
+          titleEmoji: '🎂',
+          secretIcon: '💝',
+          subHeading: 'สุขสันต์วันเกิดย้อนหลังนะ!',
+          message: 'ถึงคำอวยพรจะมาช้าไปหน่อย แต่ความหวังดีไม่เคยมาช้านะ ขอให้ปีนี้เป็นปีที่ใจดีกับเธอมากๆ พบเจอแต่สิ่งดีๆ และรอยยิ้มในทุกๆ วัน!',
+          voucherTitle: 'คูปองไถ่โทษ เลี้ยงชาบู / คาเฟ่ 1 มื้อ 🧋',
+          voucherNote: '(ใช้สิทธิ์ได้ทันทีที่พร้อม • แคปจอมาทวงได้เลย!)',
+          decos: ['🎈', '✨', '🍰', '🎁', '🌼', '💛']
+        },
+        anniversary: {
+          tagIcon: '💑',
+          tagText: 'HAPPY ANNIVERSARY',
+          mainTitle: 'Happy Anniversary',
+          titleEmoji: '💖',
+          secretIcon: '🥂',
+          subHeading: 'สุขสันต์วันครบรอบนะ!',
+          message: 'ขอบคุณที่อยู่ข้างๆ กันมาตลอด ขอให้ทุกวันต่อจากนี้เต็มไปด้วยความเข้าใจ รอยยิ้ม และความทรงจำดีๆ ร่วมกันไปนานๆ นะ',
+          voucherTitle: 'คูปองดินเนอร์พิเศษ & ตามใจ 1 วันเต็ม 🍽️',
+          voucherNote: '(เลือกสถานที่และเวลาได้ตามใจชอบ • แคปจอเพื่อใช้สิทธิ์)',
+          decos: ['💖', '✨', '🌹', '🥂', '💌', '🥰']
+        },
+        congrats: {
+          tagIcon: '🎓',
+          tagText: 'CONGRATULATIONS',
+          mainTitle: 'Congratulations!',
+          titleEmoji: '🎉',
+          secretIcon: '🏆',
+          subHeading: 'ยินดีด้วยนะคนเก่ง!',
+          message: 'ภูมิใจในความตั้งใจและความพยายามของเธอมากๆ ขอให้ก้าวต่อไปเต็มไปด้วยความสำเร็จ โอกาสดีๆ และความสุขในทุกเส้นทางที่เลือกนะ!',
+          voucherTitle: 'คูปองฉลองความสำเร็จ มื้อพิเศษ 1 มื้อ 🎉',
+          voucherNote: '(พร้อมเมื่อไหร่นัดวันฉลองได้เลย • แคปจอเพื่อใช้สิทธิ์)',
+          decos: ['🎉', '✨', '🎓', '🏆', '🌟', '👏']
+        },
+        special: {
+          tagIcon: '✨',
+          tagText: 'SPECIAL FOR YOU',
+          mainTitle: 'A Little Surprise',
+          titleEmoji: '🎁',
+          secretIcon: '💌',
+          subHeading: 'มีของขวัญเล็กๆ น้อยๆ มาฝาก!',
+          message: 'ไม่จำเป็นต้องรอวันสำคัญอะไร แค่อยากส่งพลังบวกและรอยยิ้มให้ในวันนี้ ขอให้วันนี้เป็นวันที่สดใสและราบรื่นนะ!',
+          voucherTitle: 'คูปองเติมพลัง ชานม / ขนมหวาน 1 แก้ว 🧋',
+          voucherNote: '(ใช้ได้ทุกวันไม่มีวันหมดอายุ • แคปจอส่งมาเคลมได้เลย!)',
+          decos: ['✨', '🌈', '🎁', '🍀', '☀️', '💫']
+        }
+      };
+
+      // การตั้งค่าธีมสี (Colors & Canvas Foil Gradients)
+      const THEMES = {
+        rosegold: {
+          bodyBg: 'from-[#FFFBF5] via-[#FFF5F2] to-[#FDF7E7]',
+          glow1: 'bg-rose-200/40',
+          glow2: 'bg-amber-200/45',
+          cardBorder: 'border-rose-200/80',
+          tagBg: 'bg-rose-50 border-rose-200 text-rose-600',
+          nameText: 'text-rose-500 decoration-amber-300',
+          hintText: 'text-rose-600',
+          progressBar: 'from-rose-400 to-amber-400',
+          wrapperBorder: 'border-rose-200 from-rose-50/70 to-white',
+          secretIconBg: 'bg-rose-100',
+          voucherBg: 'from-amber-50 via-rose-50 to-amber-50 border-amber-400',
+          voucherNotchBorder: 'border-amber-400',
+          voucherLabel: 'text-amber-600',
+          voucherNote: 'text-rose-600',
+          primaryBtn: 'from-rose-500 to-amber-500',
+          foilStops: ['#E7D4CE', '#D8D8DF', '#E4C3B9', '#CFCFD8', '#DFC4BC'],
+          foilTextMain: '#5C433D',
+          foilTextSub: '#7E625B',
+          confetti: ['#FB7185', '#FBBF24', '#F472B6', '#FDE68A', '#FDA4AF']
+        },
+        gold: {
+          bodyBg: 'from-[#FFFDF7] via-[#FEF9EC] to-[#FDF3D7]',
+          glow1: 'bg-amber-200/45',
+          glow2: 'bg-yellow-200/45',
+          cardBorder: 'border-amber-200/90',
+          tagBg: 'bg-amber-50 border-amber-200 text-amber-700',
+          nameText: 'text-amber-600 decoration-yellow-300',
+          hintText: 'text-amber-700',
+          progressBar: 'from-amber-400 to-yellow-500',
+          wrapperBorder: 'border-amber-200 from-amber-50/70 to-white',
+          secretIconBg: 'bg-amber-100',
+          voucherBg: 'from-yellow-50 via-amber-50 to-yellow-50 border-amber-500',
+          voucherNotchBorder: 'border-amber-500',
+          voucherLabel: 'text-amber-700',
+          voucherNote: 'text-stone-600',
+          primaryBtn: 'from-amber-500 to-yellow-500',
+          foilStops: ['#EAD8A8', '#E2DFD7', '#DFC686', '#D6D2C8', '#E6CF96'],
+          foilTextMain: '#574623',
+          foilTextSub: '#7A6539',
+          confetti: ['#F59E0B', '#FCD34D', '#D97706', '#FEF08A', '#FBBF24']
+        },
+        mint: {
+          bodyBg: 'from-[#F6FDFB] via-[#ECFDF5] to-[#F0FDFA]',
+          glow1: 'bg-emerald-200/40',
+          glow2: 'bg-teal-200/40',
+          cardBorder: 'border-emerald-200/80',
+          tagBg: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+          nameText: 'text-emerald-600 decoration-teal-300',
+          hintText: 'text-emerald-700',
+          progressBar: 'from-emerald-400 to-teal-400',
+          wrapperBorder: 'border-emerald-200 from-emerald-50/70 to-white',
+          secretIconBg: 'bg-emerald-100',
+          voucherBg: 'from-teal-50 via-emerald-50 to-teal-50 border-emerald-400',
+          voucherNotchBorder: 'border-emerald-400',
+          voucherLabel: 'text-emerald-700',
+          voucherNote: 'text-teal-700',
+          primaryBtn: 'from-emerald-500 to-teal-500',
+          foilStops: ['#C6E2D9', '#D6E0DF', '#B8DDD1', '#CBD7D6', '#C2E0D6'],
+          foilTextMain: '#284B42',
+          foilTextSub: '#476E64',
+          confetti: ['#10B981', '#5EEAD4', '#34D399', '#A7F3D0', '#FBBF24']
+        },
+        lavender: {
+          bodyBg: 'from-[#FCFaff] via-[#F5F3FF] to-[#FDF4FF]',
+          glow1: 'bg-purple-200/40',
+          glow2: 'bg-fuchsia-200/40',
+          cardBorder: 'border-purple-200/80',
+          tagBg: 'bg-purple-50 border-purple-200 text-purple-700',
+          nameText: 'text-purple-600 decoration-pink-300',
+          hintText: 'text-purple-700',
+          progressBar: 'from-purple-400 to-pink-400',
+          wrapperBorder: 'border-purple-200 from-purple-50/70 to-white',
+          secretIconBg: 'bg-purple-100',
+          voucherBg: 'from-fuchsia-50 via-purple-50 to-fuchsia-50 border-purple-400',
+          voucherNotchBorder: 'border-purple-400',
+          voucherLabel: 'text-purple-700',
+          voucherNote: 'text-fuchsia-700',
+          primaryBtn: 'from-purple-500 to-pink-500',
+          foilStops: ['#DDD0EA', '#DCD8E2', '#D4C2E5', '#D1CDD8', '#DACCE8'],
+          foilTextMain: '#473659',
+          foilTextSub: '#68547D',
+          confetti: ['#A855F7', '#F472B6', '#C084FC', '#E9D5FF', '#FBBF24']
+        },
+        sky: {
+          bodyBg: 'from-[#F7FBFF] via-[#F0F9FF] to-[#EEF2FF]',
+          glow1: 'bg-sky-200/40',
+          glow2: 'bg-indigo-200/40',
+          cardBorder: 'border-sky-200/80',
+          tagBg: 'bg-sky-50 border-sky-200 text-sky-700',
+          nameText: 'text-sky-600 decoration-indigo-300',
+          hintText: 'text-sky-700',
+          progressBar: 'from-sky-400 to-indigo-400',
+          wrapperBorder: 'border-sky-200 from-sky-50/70 to-white',
+          secretIconBg: 'bg-sky-100',
+          voucherBg: 'from-indigo-50 via-sky-50 to-indigo-50 border-sky-400',
+          voucherNotchBorder: 'border-sky-400',
+          voucherLabel: 'text-sky-700',
+          voucherNote: 'text-indigo-700',
+          primaryBtn: 'from-sky-500 to-indigo-500',
+          foilStops: ['#C9DFEC', '#D6DCE3', '#BBD6E7', '#CBD3DC', '#C5DCEB'],
+          foilTextMain: '#2B4659',
+          foilTextSub: '#4B677B',
+          confetti: ['#0EA5E9', '#818CF8', '#38BDF8', '#BAE6FD', '#FBBF24']
+        }
+      };
+
+      // ค่าเริ่มต้น
+      const DEFAULT_DATA = {
+        preset: 'birthday',
+        theme: 'rosegold',
+        tagIcon: '🎂',
+        tagText: 'HAPPY BIRTHDAY',
+        mainTitle: 'Happy Birthday!',
+        titleEmoji: '🎂',
+        recipientName: 'คนพิเศษของฉัน',
+        secretIcon: '🥳',
+        subHeading: 'สุขสันต์วันเกิดนะ!',
+        message: 'ขอให้มีความสุขมากๆ สุขภาพแข็งแรง ยิ้มเยอะๆ สมหวังในทุกเรื่องที่ตั้งใจ และน่ารักสดใสแบบนี้ตลอดไปเลยนะ!',
+        voucherTitle: 'คูปองเลี้ยงของอร่อย 1 มื้อ 🍲',
+        voucherNote: '(ใช้ได้ทุกวันไม่จำกัดวันหมดอายุ • แคปจอส่งมาเคลมได้เลย!)',
+        decos: ['🎈', '✨', '🎂', '🎁', '🌸', '💖']
+      };
+
+      // อ้างอิง DOM Elements
+      const appBody = document.getElementById('appBody');
+      const bgGlow1 = document.getElementById('bgGlow1');
+      const bgGlow2 = document.getElementById('bgGlow2');
+      const mainCard = document.getElementById('mainCard');
+      const tagBadgeContainer = document.getElementById('tagBadgeContainer');
+      const displayTagIcon = document.getElementById('displayTagIcon');
+      const displayTagText = document.getElementById('displayTagText');
+      const displayMainTitle = document.getElementById('displayMainTitle');
+      const displayTitleEmoji = document.getElementById('displayTitleEmoji');
+      const displayRecipientName = document.getElementById('displayRecipientName');
+      const secretIconBox = document.getElementById('secretIconBox');
+      const displaySubHeading = document.getElementById('displaySubHeading');
+      const displayMessage = document.getElementById('displayMessage');
+      const voucherBox = document.getElementById('voucherBox');
+      const voucherNotchLeft = document.getElementById('voucherNotchLeft');
+      const voucherNotchRight = document.getElementById('voucherNotchRight');
+      const voucherBadgeLabel = document.getElementById('voucherBadgeLabel');
+      const displayVoucherTitle = document.getElementById('displayVoucherTitle');
+      const displayVoucherNote = document.getElementById('displayVoucherNote');
+
+      const canvas = document.getElementById('scratchCanvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const scratchWrapper = document.getElementById('scratchWrapper');
+      const scratchProgressBar = document.getElementById('scratchProgressBar');
+      const scratchPercentText = document.getElementById('scratchPercentText');
+      const scratchHintText = document.getElementById('scratchHintText');
+      const completedBanner = document.getElementById('completedBanner');
+
+      // ปุ่มควบคุมและเสียง
+      const toggleSoundBtn = document.getElementById('toggleSoundBtn');
+      const soundIcon = document.getElementById('soundIcon');
+      const soundLabel = document.getElementById('soundLabel');
+      const unlockEditModeBtn = document.getElementById('unlockEditModeBtn');
+      const actionButtonsGrid = document.getElementById('actionButtonsGrid');
+      const resetBtn = document.getElementById('resetBtn');
+      const openEditModalBtn = document.getElementById('openEditModalBtn');
+      const toastNotification = document.getElementById('toastNotification');
+
+      // Modal Elements
+      const editModal = document.getElementById('editModal');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      const customForm = document.getElementById('customForm');
+      const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
+      const insertTodayBtn = document.getElementById('insertTodayBtn');
+      const clearTagBtn = document.getElementById('clearTagBtn');
+
+      // Form Inputs
+      const inputTagText = document.getElementById('inputTagText');
+      const inputMainTitle = document.getElementById('inputMainTitle');
+      const inputRecipientName = document.getElementById('inputRecipientName');
+      const inputSubHeading = document.getElementById('inputSubHeading');
+      const inputMessage = document.getElementById('inputMessage');
+      const inputVoucherTitle = document.getElementById('inputVoucherTitle');
+      const inputVoucherNote = document.getElementById('inputVoucherNote');
+
+      // สถานะแอป
+      let isDrawing = false;
+      let lastPoint = null;
+      let isRevealed = false;
+      let strokeCounter = 0;
+      let soundEnabled = true;
+      let isSharedRecipientView = false;
+      let selectedPreset = 'birthday';
+      let selectedTheme = 'rosegold';
+      let cardData = initializeCardData();
+
+      /**
+       * เข้ารหัสข้อมูล JSON รองรับภาษาไทยเป็น Base64 URL-safe สำหรับแนบในลิงก์
+       */
+      function encodeCardToBase64(obj) {
+        const jsonStr = JSON.stringify(obj);
+        const bytes = new TextEncoder().encode(jsonStr);
+        let binStr = '';
+        bytes.forEach((b) => { binStr += String.fromCharCode(b); });
+        return btoa(binStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+
+      /**
+       * ถอดรหัส Base64 URL-safe กลับเป็น Object
+       */
+      function decodeCardFromBase64(b64) {
+        let base64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) { base64 += '='; }
+        const binStr = atob(base64);
+        const bytes = new Uint8Array(binStr.length);
+        for (let i = 0; i < binStr.length; i++) {
+          bytes[i] = binStr.charCodeAt(i);
+        }
+        const jsonStr = new TextDecoder().decode(bytes);
+        return JSON.parse(jsonStr);
+      }
+
+      /**
+       * โหลดข้อมูลการ์ด โดยให้ความสำคัญกับ URL parameter (?c=...) ก่อน แล้วจึงดู localStorage
+       */
+      function initializeCardData() {
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const sharedPayload = urlParams.get('c');
+          if (sharedPayload) {
+            const parsed = decodeCardFromBase64(sharedPayload);
+            isSharedRecipientView = true;
+            return { ...DEFAULT_DATA, ...parsed };
+          }
+        } catch (err) {
+          console.warn('ลิงก์แชร์ไม่ถูกต้องหรือข้อมูลเสียหาย:', err);
+        }
+
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            return { ...DEFAULT_DATA, ...JSON.parse(saved) };
+          }
+        } catch (err) {
+          console.warn('ไม่สามารถอ่าน localStorage ได้:', err);
+        }
+
+        return { ...DEFAULT_DATA };
+      }
+
+      /**
+       * บันทึกลง localStorage
+       */
+      function saveCardData(data) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } catch (err) {
+          console.warn('ไม่สามารถบันทึก localStorage ได้:', err);
+        }
+      }
+
+      /**
+       * สร้างข้อความวันที่ปัจจุบันแบบภาษาไทย (เช่น "24 พฤศจิกายน 2569")
+       */
+      function getFormattedThaiToday() {
+        const now = new Date();
+        return now.toLocaleDateString('th-TH', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+      }
+
+      /**
+       * อัปเดตการแสดงผลธีมสีและข้อความทั้งหมดบนหน้าการ์ด
+       */
+      function renderCardAndTheme() {
+        const theme = THEMES[cardData.theme] || THEMES.rosegold;
+
+        // อัปเดตคลาสสีตามธีม
+        appBody.className = `min-h-screen bg-gradient-to-br ${theme.bodyBg} text-stone-700 font-sans relative overflow-x-hidden flex flex-col items-center justify-center p-4 sm:p-6 transition-colors duration-500`;
+        bgGlow1.className = `absolute -top-24 -left-24 w-72 h-72 ${theme.glow1} rounded-full blur-3xl transition-colors duration-500`;
+        bgGlow2.className = `absolute -bottom-24 -right-24 w-80 h-80 ${theme.glow2} rounded-full blur-3xl transition-colors duration-500`;
+
+        mainCard.className = `w-full bg-white/90 backdrop-blur-md rounded-3xl shadow-xl border ${theme.cardBorder} p-5 sm:p-7 transition-all duration-300`;
+        tagBadgeContainer.className = `inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border ${theme.tagBg} text-xs sm:text-sm font-semibold tracking-wide mb-2.5 shadow-sm transition-colors`;
+        displayRecipientName.className = `font-cute font-bold ${theme.nameText} underline decoration-wavy underline-offset-4`;
+        scratchHintText.className = `font-medium ${theme.hintText}`;
+        scratchProgressBar.className = `h-full w-0 bg-gradient-to-r ${theme.progressBar} rounded-full transition-all duration-150`;
+        scratchWrapper.className = `relative w-full rounded-2xl overflow-hidden shadow-inner border-2 ${theme.wrapperBorder} bg-gradient-to-b select-none transition-colors`;
+        secretIconBox.className = `inline-flex items-center justify-center w-11 h-11 rounded-2xl ${theme.secretIconBg} text-2xl mb-2.5 shadow-sm`;
+
+        voucherBox.className = `voucher-shimmer relative overflow-hidden rounded-2xl bg-gradient-to-r ${theme.voucherBg} border-2 border-dashed p-4 shadow-sm transition-colors`;
+        voucherNotchLeft.className = `absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border-r-2 ${theme.voucherNotchBorder}`;
+        voucherNotchRight.className = `absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border-l-2 ${theme.voucherNotchBorder}`;
+        voucherBadgeLabel.className = `text-[11px] font-bold uppercase tracking-widest ${theme.voucherLabel} mb-1`;
+        displayVoucherNote.className = `mt-1 text-xs font-medium ${theme.voucherNote}`;
+        openEditModalBtn.className = `flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r ${theme.primaryBtn} hover:opacity-95 active:scale-95 text-white font-medium text-sm shadow-md transition-all cursor-pointer`;
+
+        // ซ่อน/แสดงป้ายกำกับด้านบนตามข้อความที่กรอก
+        if (cardData.tagText && cardData.tagText.trim() !== '') {
+          tagBadgeContainer.classList.remove('hidden');
+          displayTagIcon.textContent = cardData.tagIcon || '✨';
+          displayTagText.textContent = cardData.tagText;
+        } else {
+          tagBadgeContainer.classList.add('hidden');
+        }
+
+        // อัปเดตเนื้อหาข้อความ
+        displayMainTitle.textContent = cardData.mainTitle;
+        displayTitleEmoji.textContent = cardData.titleEmoji || '';
+        displayRecipientName.textContent = cardData.recipientName;
+        secretIconBox.textContent = cardData.secretIcon || '🥳';
+        displaySubHeading.textContent = cardData.subHeading;
+        displayMessage.textContent = cardData.message;
+        displayVoucherTitle.textContent = cardData.voucherTitle;
+        displayVoucherNote.textContent = cardData.voucherNote || '';
+
+        // อัปเดตอีโมจิลอยพื้นหลังให้เข้ากับโอกาส
+        const decos = cardData.decos || DEFAULT_DATA.decos;
+        for (let i = 0; i < 6; i++) {
+          const el = document.getElementById(`deco${i + 1}`);
+          if (el && decos[i]) {
+            el.textContent = decos[i];
+          }
+        }
+
+        // จัดการการแสดงปุ่มแก้ไขกรณีเปิดผ่านลิงก์ที่ส่งให้ผู้รับ
+        updateShareModeUI();
+      }
+
+      /**
+       * ซ่อนปุ่มแก้ไขเมื่อเปิดจากลิงก์แชร์ เพื่อไม่ให้เกะกะสายตาผู้รับ (แต่ยังมีปุ่มเล็กๆ ให้กดปลดล็อกได้)
+       */
+      function updateShareModeUI() {
+        if (isSharedRecipientView) {
+          openEditModalBtn.classList.add('hidden');
+          actionButtonsGrid.classList.remove('grid-cols-2');
+          actionButtonsGrid.classList.add('grid-cols-1');
+          unlockEditModeBtn.classList.remove('hidden');
+        } else {
+          openEditModalBtn.classList.remove('hidden');
+          actionButtonsGrid.classList.remove('grid-cols-1');
+          actionButtonsGrid.classList.add('grid-cols-2');
+          unlockEditModeBtn.classList.add('hidden');
+        }
+      }
+
+      /**
+       * วาดแผ่นฟอยล์เมทัลลิกบน Canvas ตามสีธีมที่เลือก
+       */
+      function initScratchFoil() {
+        const theme = THEMES[cardData.theme] || THEMES.rosegold;
+        const rect = scratchWrapper.getBoundingClientRect();
+        const width = Math.max(Math.floor(rect.width), 260);
+        const height = Math.max(Math.floor(rect.height), 325);
+
+        canvas.width = width;
+        canvas.height = height;
+
+        isRevealed = false;
+        isDrawing = false;
+        lastPoint = null;
+        strokeCounter = 0;
+
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+        completedBanner.classList.add('hidden');
+        scratchProgressBar.style.width = '0%';
+        scratchPercentText.textContent = '0%';
+        scratchHintText.textContent = '✨ ถูแผ่นฟอยล์เพื่อเปิดคำอวยพรและของขวัญ';
+
+        ctx.globalCompositeOperation = 'source-over';
+
+        // 1. พื้นหลังฟอยล์ไล่เฉดเมทัลลิกตามธีม
+        const foilGrad = ctx.createLinearGradient(0, 0, width, height);
+        const stops = theme.foilStops;
+        foilGrad.addColorStop(0, stops[0]);
+        foilGrad.addColorStop(0.28, stops[1]);
+        foilGrad.addColorStop(0.55, stops[2]);
+        foilGrad.addColorStop(0.82, stops[3]);
+        foilGrad.addColorStop(1, stops[4]);
+
+        ctx.fillStyle = foilGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // 2. ลวดลายจุดประกายบนแผ่นฟอยล์
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        const spacing = 24;
+        for (let y = 12; y < height; y += spacing) {
+          for (let x = 12; x < width; x += spacing) {
+            const offsetX = (Math.floor(y / spacing) % 2 === 0) ? 0 : spacing / 2;
+            ctx.beginPath();
+            ctx.arc(x + offsetX, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // เส้นกรอบประด้านในฟอยล์
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(12, 12, width - 24, height - 24);
+        ctx.setLineDash([]);
+
+        // 3. วงกลมไอคอนกล่องของขวัญและข้อความเชิญชวนให้ขูด
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2 - 36, 30, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = '32px sans-serif';
+        ctx.fillText('🎁', width / 2, height / 2 - 34);
+
+        ctx.fillStyle = theme.foilTextMain;
+        ctx.font = '600 17px "Prompt", sans-serif';
+        ctx.fillText('ใช้นิ้วถูหรือลากเมาส์ขูดตรงนี้ ✨', width / 2, height / 2 + 16);
+
+        ctx.fillStyle = theme.foilTextSub;
+        ctx.font = '400 13px "Prompt", sans-serif';
+        ctx.fillText('มีคำอวยพรและของขวัญซ่อนอยู่ด้านใน!', width / 2, height / 2 + 44);
+      }
+
+      /**
+       * คำนวณพิกัดบน Canvas จาก Mouse หรือ Touch
+       */
+      function getPointerPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      }
+
+      /**
+       * ลบเนื้อฟอยล์ตามเส้นทางที่ลาก
+       */
+      function scratchAt(point) {
+        if (isRevealed) return;
+
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        const brushRadius = Math.max(22, Math.min(canvas.width * 0.075, 30));
+        ctx.lineWidth = brushRadius * 2;
+
+        ctx.beginPath();
+        if (lastPoint) {
+          ctx.moveTo(lastPoint.x, lastPoint.y);
+          ctx.lineTo(point.x, point.y);
+          ctx.stroke();
+        }
+        ctx.arc(point.x, point.y, brushRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        lastPoint = point;
+        strokeCounter++;
+
+        if (strokeCounter % 6 === 0) {
+          updateScratchProgress();
+        }
+      }
+
+      /**
+       * คำนวณเปอร์เซ็นต์พื้นที่ที่ถูกขูดไปแล้ว
+       */
+      function updateScratchProgress() {
+        if (isRevealed) return;
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const pixels = imageData.data;
+          let transparentPixels = 0;
+          let sampledPixels = 0;
+
+          const step = 64;
+          for (let i = 3; i < pixels.length; i += step) {
+            sampledPixels++;
+            if (pixels[i] < 128) {
+              transparentPixels++;
+            }
+          }
+
+          const percent = Math.min(100, Math.round((transparentPixels / sampledPixels) * 100));
+          scratchProgressBar.style.width = `${percent}%`;
+          scratchPercentText.textContent = `${percent}%`;
+
+          if (percent >= REVEAL_THRESHOLD) {
+            revealAll();
+          }
+        } catch (err) {
+          console.error('เกิดข้อผิดพลาดในการคำนวณพื้นที่ขูด:', err);
+        }
+      }
+
+      /**
+       * เปิดเผยแผ่นฟอยล์ทั้งหมด + ยิงพลุ + เสียงกระดิ่ง
+       */
+      function revealAll() {
+        if (isRevealed) return;
+        isRevealed = true;
+        isDrawing = false;
+
+        scratchProgressBar.style.width = '100%';
+        scratchPercentText.textContent = '100%';
+        scratchHintText.textContent = '🎉 เปิดการ์ดเรียบร้อยแล้ว!';
+
+        canvas.style.opacity = '0';
+        canvas.style.pointerEvents = 'none';
+        completedBanner.classList.remove('hidden');
+
+        if (soundEnabled) {
+          playCelebrationChime();
+        }
+        launchConfetti();
+      }
+
+      /**
+       * ยิงพลุกระดาษฉลองตามสีธีม
+       */
+      function launchConfetti() {
+        if (typeof confetti !== 'function') return;
+        const theme = THEMES[cardData.theme] || THEMES.rosegold;
+
+        confetti({
+          particleCount: 75,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: theme.confetti
+        });
+
+        setTimeout(() => {
+          confetti({
+            particleCount: 40,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0.1, y: 0.65 },
+            colors: theme.confetti
+          });
+          confetti({
+            particleCount: 40,
+            angle: 120,
+            spread: 55,
+            origin: { x: 0.9, y: 0.65 },
+            colors: theme.confetti
+          });
+        }, 250);
+      }
+
+      /**
+       * เล่นเสียงกระดิ่งใสๆ ผ่าน Web Audio API
+       */
+      function playCelebrationChime() {
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          const audioCtx = new AudioCtx();
+
+          const notes = [523.25, 659.25, 783.99, 1046.50];
+          notes.forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx * 0.09);
+
+            gain.gain.setValueAtTime(0.001, audioCtx.currentTime + idx * 0.09);
+            gain.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime + idx * 0.09 + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + idx * 0.09 + 0.45);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(audioCtx.currentTime + idx * 0.09);
+            osc.stop(audioCtx.currentTime + idx * 0.09 + 0.46);
+          });
+        } catch (e) {
+          // ข้ามหากเบราว์เซอร์ไม่อนุญาตเสียงอัตโนมัติ
+        }
+      }
+
+      /**
+       * แสดง Toast Notification
+       */
+      function showToast(text) {
+        toastNotification.textContent = text;
+        toastNotification.classList.remove('opacity-0', 'translate-y-3');
+        toastNotification.classList.add('opacity-100', 'translate-y-0');
+
+        setTimeout(() => {
+          toastNotification.classList.remove('opacity-100', 'translate-y-0');
+          toastNotification.classList.add('opacity-0', 'translate-y-3');
+        }, 2600);
+      }
+
+      /**
+       * คัดลอกข้อความลงคลิปบอร์ด (รองรับ iframe ด้วย execCommand fallback)
+       */
+      function copyTextToClipboard(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          showToast('คัดลอกลิงก์การ์ดเรียบร้อย! ส่งให้ผู้รับได้เลย 🔗✨');
+        } catch (err) {
+          showToast('ไม่สามารถคัดลอกอัตโนมัติได้ กรุณาคัดลอกจากแถบ URL');
+        }
+        document.body.removeChild(textArea);
+      }
+
+      // ================= Event Listeners สำหรับการขูด =================
+
+      canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        lastPoint = getPointerPos(e);
+        scratchAt(lastPoint);
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDrawing) return;
+        scratchAt(getPointerPos(e));
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDrawing) {
+          isDrawing = false;
+          lastPoint = null;
+          updateScratchProgress();
+        }
+      });
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.cancelable) e.preventDefault();
+        isDrawing = true;
+        lastPoint = getPointerPos(e);
+        scratchAt(lastPoint);
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (!isDrawing) return;
+        if (e.cancelable) e.preventDefault();
+        scratchAt(getPointerPos(e));
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', () => {
+        if (isDrawing) {
+          isDrawing = false;
+          lastPoint = null;
+          updateScratchProgress();
+        }
+      });
+
+      // ================= Event Listeners สำหรับปุ่มควบคุม & Modal =================
+
+      // ปุ่มเปิด/ปิดเสียง
+      toggleSoundBtn.addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        soundIcon.textContent = soundEnabled ? '🔊' : '🔇';
+        soundLabel.textContent = soundEnabled ? 'เสียง: เปิด' : 'เสียง: ปิด';
+      });
+
+      // ปุ่มปลดล็อกโหมดแก้ไขเมื่อเปิดผ่านลิงก์แชร์
+      unlockEditModeBtn.addEventListener('click', () => {
+        isSharedRecipientView = false;
+        updateShareModeUI();
+        showToast('เปิดปุ่มปรับแต่งการ์ดแล้ว ✏️');
+      });
+
+      // ปุ่มขูดใหม่
+      resetBtn.addEventListener('click', () => {
+        initScratchFoil();
+        showToast('รีเซ็ตแผ่นฟอยล์เรียบร้อย ลองขูดใหม่ได้เลย! ✨');
+      });
+
+      // ไฮไลต์ปุ่ม Preset และ Theme ใน Modal
+      function highlightModalSelections() {
+        document.querySelectorAll('.preset-btn').forEach((btn) => {
+          if (btn.dataset.preset === selectedPreset) {
+            btn.classList.add('border-rose-400', 'bg-rose-50', 'text-rose-700', 'font-semibold');
+            btn.classList.remove('border-stone-200', 'bg-white', 'text-stone-700');
+          } else {
+            btn.classList.remove('border-rose-400', 'bg-rose-50', 'text-rose-700', 'font-semibold');
+            btn.classList.add('border-stone-200', 'bg-white', 'text-stone-700');
+          }
+        });
+
+        document.querySelectorAll('.theme-btn').forEach((btn) => {
+          if (btn.dataset.theme === selectedTheme) {
+            btn.classList.add('border-stone-800', 'bg-stone-50');
+            btn.classList.remove('border-stone-200', 'bg-white');
+          } else {
+            btn.classList.remove('border-stone-800', 'bg-stone-50');
+            btn.classList.add('border-stone-200', 'bg-white');
+          }
+        });
+      }
+
+      // เปิด Modal แก้ไข
+      openEditModalBtn.addEventListener('click', () => {
+        selectedPreset = cardData.preset || 'birthday';
+        selectedTheme = cardData.theme || 'rosegold';
+
+        inputTagText.value = cardData.tagText || '';
+        inputMainTitle.value = cardData.mainTitle;
+        inputRecipientName.value = cardData.recipientName;
+        inputSubHeading.value = cardData.subHeading;
+        inputMessage.value = cardData.message;
+        inputVoucherTitle.value = cardData.voucherTitle;
+        inputVoucherNote.value = cardData.voucherNote || '';
+
+        highlightModalSelections();
+        editModal.classList.remove('hidden');
+        editModal.classList.add('flex');
+      });
+
+      function closeEditModal() {
+        editModal.classList.add('hidden');
+        editModal.classList.remove('flex');
+      }
+
+      closeModalBtn.addEventListener('click', closeEditModal);
+      editModal.addEventListener('click', (e) => {
+        if (e.target === editModal) closeEditModal();
+      });
+
+      // เลือก Preset โอกาสพิเศษใน Modal
+      document.querySelectorAll('.preset-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const presetKey = btn.dataset.preset;
+          const preset = OCCASION_PRESETS[presetKey];
+          if (!preset) return;
+
+          selectedPreset = presetKey;
+          inputTagText.value = preset.tagText;
+          inputMainTitle.value = preset.mainTitle;
+          inputSubHeading.value = preset.subHeading;
+          inputMessage.value = preset.message;
+          inputVoucherTitle.value = preset.voucherTitle;
+          inputVoucherNote.value = preset.voucherNote;
+
+          highlightModalSelections();
+        });
+      });
+
+      // เลือก Theme สีใน Modal
+      document.querySelectorAll('.theme-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          selectedTheme = btn.dataset.theme;
+          highlightModalSelections();
+        });
+      });
+
+      // ปุ่มแทรกวันที่วันนี้
+      insertTodayBtn.addEventListener('click', () => {
+        inputTagText.value = getFormattedThaiToday();
+      });
+
+      // ปุ่มล้างป้ายกำกับด้านบน
+      clearTagBtn.addEventListener('click', () => {
+        inputTagText.value = '';
+      });
+
+      // รวบรวมข้อมูลจากฟอร์ม
+      function collectFormData() {
+        const presetObj = OCCASION_PRESETS[selectedPreset] || OCCASION_PRESETS.special;
+        return {
+          preset: selectedPreset,
+          theme: selectedTheme,
+          tagIcon: presetObj.tagIcon,
+          tagText: inputTagText.value.trim(),
+          mainTitle: inputMainTitle.value.trim() || presetObj.mainTitle,
+          titleEmoji: presetObj.titleEmoji,
+          recipientName: inputRecipientName.value.trim() || DEFAULT_DATA.recipientName,
+          secretIcon: presetObj.secretIcon,
+          subHeading: inputSubHeading.value.trim() || presetObj.subHeading,
+          message: inputMessage.value.trim() || presetObj.message,
+          voucherTitle: inputVoucherTitle.value.trim() || presetObj.voucherTitle,
+          voucherNote: inputVoucherNote.value.trim(),
+          decos: presetObj.decos
+        };
+      }
+
+      // บันทึกฟอร์มและรีเซ็ตแผ่นขูด
+      customForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        cardData = collectFormData();
+        saveCardData(cardData);
+        renderCardAndTheme();
+        closeEditModal();
+
+        // ล้าง query string เดิมหากเคยเปิดจากลิงก์แชร์
+        if (window.location.search) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        requestAnimationFrame(() => {
+          initScratchFoil();
+          showToast('บันทึกการ์ดใหม่ & รีเซ็ตแผ่นขูดแล้ว ✨');
+        });
+      });
+
+      // สร้างลิงก์แชร์ที่มีข้อมูลการ์ดฝังอยู่และคัดลอกลงคลิปบอร์ด
+      copyShareLinkBtn.addEventListener('click', () => {
+        cardData = collectFormData();
+        saveCardData(cardData);
+        renderCardAndTheme();
+        closeEditModal();
+
+        requestAnimationFrame(() => {
+          initScratchFoil();
+          const encoded = encodeCardToBase64(cardData);
+          const shareUrl = `${window.location.origin}${window.location.pathname}?c=${encoded}`;
+          copyTextToClipboard(shareUrl);
+        });
+      });
+
+      // ปรับขนาด Canvas อัตโนมัติเมื่อเปลี่ยนขนาดหน้าจอ (ถ้ายังขูดไม่เสร็จ)
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (!isRevealed) {
+            initScratchFoil();
+          }
+        }, 200);
+      });
+
+      // เริ่มต้นทำงานเมื่อโหลดหน้าเว็บเสร็จสมบูรณ์
+      window.addEventListener('load', () => {
+        renderCardAndTheme();
+        initScratchFoil();
+      });
+    })();
+  </script>
+</body>
+</html>
